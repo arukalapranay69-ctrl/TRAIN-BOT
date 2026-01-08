@@ -1,0 +1,176 @@
+import requests
+from bs4 import BeautifulSoup
+import logging
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+def search_trains(from_station, to_station, date):
+    """
+    Search trains from RailYatri
+    
+    Args:
+        from_station: Source station name
+        to_station: Destination station name
+        date: Date in DD-MM-YYYY format
+        
+    Returns:
+        List of train dictionaries with details
+    """
+    
+    try:
+        # Convert date format
+        date_obj = datetime.strptime(date, "%d-%m-%Y")
+        formatted_date = date_obj.strftime("%Y%m%d")
+        
+        # RailYatri search URL
+        # Note: This is a simplified version. Actual implementation may need station codes
+        url = f"https://www.railyatri.in/train-ticket/trains-between-stations"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        # Make request
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code != 200:
+            logger.error(f"Failed to fetch data. Status code: {response.status_code}")
+            return get_sample_data(from_station, to_station)
+        
+        # Parse HTML
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        trains = []
+        
+        # Try to find train data
+        # Note: This selector may need adjustment based on actual website structure
+        train_elements = soup.find_all('div', class_='train-card')
+        
+        if not train_elements:
+            logger.warning("No train elements found, returning sample data")
+            return get_sample_data(from_station, to_station)
+        
+        for element in train_elements[:10]:  # Max 10 trains
+            try:
+                train = {}
+                
+                # Extract train details (selectors may need adjustment)
+                name_elem = element.find('span', class_='train-name')
+                number_elem = element.find('span', class_='train-number')
+                dept_elem = element.find('span', class_='departure-time')
+                arr_elem = element.find('span', class_='arrival-time')
+                duration_elem = element.find('span', class_='duration')
+                avail_elem = element.find('span', class_='availability')
+                
+                train['name'] = name_elem.text.strip() if name_elem else "Unknown Train"
+                train['number'] = number_elem.text.strip() if number_elem else "00000"
+                train['departure'] = dept_elem.text.strip() if dept_elem else "00:00"
+                train['arrival'] = arr_elem.text.strip() if arr_elem else "00:00"
+                train['duration'] = duration_elem.text.strip() if duration_elem else "N/A"
+                train['availability'] = avail_elem.text.strip() if avail_elem else ""
+                
+                trains.append(train)
+                
+            except Exception as e:
+                logger.error(f"Error parsing train element: {e}")
+                continue
+        
+        if trains:
+            return trains
+        else:
+            return get_sample_data(from_station, to_station)
+            
+    except requests.RequestException as e:
+        logger.error(f"Request error: {e}")
+        return get_sample_data(from_station, to_station)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        return get_sample_data(from_station, to_station)
+
+def get_sample_data(from_station, to_station):
+    """
+    Return sample train data when scraping fails
+    This helps you test the bot while you work on proper scraping
+    
+    IMPORTANT: Replace this with actual scraping logic
+    """
+    
+    logger.info("Using sample data for testing")
+    
+    sample_trains = [
+        {
+            'name': 'Rajdhani Express',
+            'number': '12301',
+            'departure': '16:55',
+            'arrival': '08:35',
+            'duration': '15h 40m',
+            'availability': 'Available'
+        },
+        {
+            'name': 'Shatabdi Express',
+            'number': '12002',
+            'departure': '06:00',
+            'arrival': '14:30',
+            'duration': '8h 30m',
+            'availability': 'RAC'
+        },
+        {
+            'name': 'Duronto Express',
+            'number': '12260',
+            'departure': '22:20',
+            'arrival': '12:55',
+            'duration': '14h 35m',
+            'availability': 'Waiting List'
+        },
+        {
+            'name': 'Garib Rath',
+            'number': '12910',
+            'departure': '21:35',
+            'arrival': '14:20',
+            'duration': '16h 45m',
+            'availability': 'Available'
+        },
+        {
+            'name': 'Jan Shatabdi',
+            'number': '12082',
+            'departure': '05:40',
+            'arrival': '13:15',
+            'duration': '7h 35m',
+            'availability': 'Available'
+        }
+    ]
+    
+    return sample_trains
+
+def get_station_code(station_name):
+    """
+    Convert station name to station code
+    You may need to add more stations or use an API for this
+    """
+    
+    station_codes = {
+        'mumbai': 'CSMT',
+        'delhi': 'NDLS',
+        'bangalore': 'SBC',
+        'chennai': 'MAS',
+        'kolkata': 'HWH',
+        'hyderabad': 'HYB',
+        'pune': 'PUNE',
+        'ahmedabad': 'ADI',
+        'jaipur': 'JP',
+        'lucknow': 'LKO',
+        'patna': 'PNBE',
+        'bhopal': 'BPL',
+        'indore': 'INDB',
+        'nagpur': 'NGP',
+        'surat': 'ST',
+        'agra': 'AGC',
+        'varanasi': 'BSB',
+        'amritsar': 'ASR',
+        'chandigarh': 'CDG',
+        'goa': 'MAO'
+    }
+    
+    station_lower = station_name.lower().strip()
+    return station_codes.get(station_lower, station_name.upper()[:4])
